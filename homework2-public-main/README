@@ -1,0 +1,107 @@
+Barbuceanu Constantin 322CB
+
+Tema2 - Protocoale de comunicatie - Aplicatie client-server folosind protocoalele TCP si UDP.
+
+Scopul temei consta in realizarea unei aplicatii client-server pentru gestionarea mesajelor trimise prin intermediul protocoalelor TCP si UDP.
+Tema necesita:
+    -folosirea API-ului de sockets
+    -multiplexarea conexiunilor TCP, UDP, stdin
+    -definirea unor tipuri de date peste TCP si UDP de nivel aplicatie, care vor fi explicate aici
+
+Descrierea modului de implementare:
+
+---------------
+    SERVER:
+---------------
+
+Serverul are rol de intermediere intre clientii UDP si cei TCP. Acesta deschide un socket TCP si unul UDP si asteapta conexiuni pe toate adresele IP disponibile local.
+
+Odata deschis serverul (functia "open_server") executia programului intra in bucla infinita a whileului, din care se iese doar la primirea unei comenzi "exit" de la stdin, cu break. La fiecare pas al ciclarii se apeleaza "select", si se verifica pe care socket din multimea socketilor de intrare s-a primit mesaj: stdin, udp, tcp pasiv doar pentru conexiuni sau un socket activ tcp al unui client.
+
+Daca se primeste mesaj de la un client udp, acesta este primit in structura "from_udp_client" si este trimis la destinatari(clientii tcp abonati la topic) in structura "to_tcp_client".
+
+Daca se primeste informatie pe socketul tcp care asculta conexiuni se fac urmatoarele:
+    1)Se accepta conexiunea
+    2)Se receptioneaza mesajul imediat urmator care contine id-ul clientului.
+    3)Se introduce socketul clientului in multimea de socketi.
+    4)Se verifica daca suntem in cazul unei reconectari sau a unei incercari de conectare cu un id deja existent. Cazurile cu afisarile aferente sunt tratate in functia separata "check_client".
+    5)Daca nu suntem in niciunul din cele doua cazuri, se realoca vectorul de clienti daca s-a atins numarul maxim de clienti, se dezactiveaza Neagle, se populeaza structura noului client in vector si se afiseaza mesajul corespunzator la stdout.
+
+Daca vin date pe un socket activ al unui client:
+    1)Fie se deconecteza, caz in clare se face clear din multimea de socketi.
+    2)Fie da subscribe, caz in care se verifica pentru realocare daca vectorul de topicuri a atins dimensiunea maxima, dupa care se completeaza campurile structurii "topic".
+    3)Fie da unsubscribe. Cazul este tratat in functia "unsubscribe_client_from_topic". Ce face serverul aici este sa gaseasca topicul in array-ul de topicuri si sa il stearga prin mutarea cu o pozitie la stanga a tuturor topicurilor de la dreapta lui.
+
+Programul nu ar trebui sa aiba memory leakuri deoarece in functia "free_the_memory" dezaloc vectorul de clienti, plus vectorul "topics" si "stored_messages_array" din fiecare client.
+
+---------------
+    CLIENT TCP:
+---------------
+
+Clientii TCP, sunt rulati cu id-ul, ip-ul si portul primiti in linia de comanda. Acestia pot fi teoretic in orice numar, fapt asigurat de catre server prin aceea ca vectorul de clienti este alocat si realocat dinamic.
+
+In while se face select si se verifica daca s-au primit date de la stdin sau pe socketul de comunicare cu serverul.
+
+De la stdin se poate primi: exit, subscribe, unsubscribe. Importanta este functia "stdin_command" care apeleaza functiile "subscribe" sau "unsubscribe" dupa caz, acestea trimitand mesajul la server in structura from_tcp_client. Daca se primeste exit se da close socketului si break ca sa se iasa din while.
+
+Daca s-a primit mesaj de la server se verifica daca serverul s-a inchis, caz in care se inchide si clientul. Daca nu s-a inchis, se verifica daca serverul a trimis vreun mesaj de eroare privitor la comanda anterioara. Daca a trimis se afiseaza acel mesaj la stderr.
+Daca nu a trimis niciun mesaj de eroare, clientul foloseste functia "output_subscriber" ca sa afiseze mesajul primit de la server. Aceasta apeleaza functii precum "show_int", "show_short_real", "show_string", "show_real" ca sa parseze mesajul primit in forma dorita pentru outputul clientului la stdout.
+
+---------------
+    OBSERVATII:
+---------------
+
+1) Ca sa stochez vectorul de clienti, vectorul de topicuri pentru fiecare client si vectorul de mesaje cacheuite pt un client daca SF = 1 pe anumite topicuri, am folosit alocarea dinamica si realloc daca se atingea dimeniunea maxima.
+
+2) Nu ar trebui sa existe memroy leakuri deoarece am dezalocat tot la finalul mainului din server.
+
+3) Pentru afisarea mesajelor de eroare am folosit in general functia DIE din laborator sau foarte rar fprintf. Consider ca am respectat cat am putut de mult principiile programarii defensive, verificand cazurile de eroare ale functiilor din API-ul sockets cu DIE, si de asemenea incercand sa acopar si cazuri posibile de input invalid.
+
+4) Pentru stocarea mesajelor cu SF = 1 am folosit conceptul de coada implementat printr-un vector alocat dinamic cu primul element pe indexul 0.
+
+5)In fisierul "app_protocol.h" am definit mai multe structuri care servesc la realizarea protocolului de nivel aplicatie de peste TCP si UDP. Acestea sunt:
+
+    ################################################################################
+    -from_tcp_client (mesaj primit de server de la un client tcp)
+        *char c[CLIENT_MAX_COMMAND_LEN];    //tipul comenzii(subscribe/unsubscribe)
+        *char topic[TOPIC_MAX_LEN];         //numele topicului
+        *char id[ID_MAX_LEN];               //idul clientului
+        *unsigned char SF;                  //store and forward
+    ################################################################################
+
+    ################################################################################
+    -from_udp_client (mesaj primit de server de la un client udp)
+        *char topic[TOPIC_MAX_LEN];	        //nume topic		
+	    *unsigned char type;		        //data_type
+	    *char payload[PAYLOAD_LEN];
+    ################################################################################
+
+    ################################################################################
+    -to_tcp_client   (mesaj trimis de server la un client tcp)
+        *char udp_client_ip[IP_MAX_LEN];	//ip udp client		
+	    *int port;						    //port udp client
+	    *from_udp_client m;                 //mesaj efectiv
+    ################################################################################
+
+    ################################################################################
+    -topic           (un topic)
+        *unsigned char SF;                  //store and forward
+	    *char title[TOPIC_MAX_LEN];         //titlu topic
+	    *int subscribed;                    //0/1 daca e sau nu abonat la topic clientul
+    ################################################################################
+
+    ################################################################################
+    -client          (structura care retine informatii despre un client tcp)
+        *int socket;				        //socket
+	    *char id[ID_MAX_LEN];		        //id
+	    *topic *topics;                     //vector topicuri
+        *int topics_array_phys_dim;			//dim. totala vector topicuri.
+	    *int nr_topics;  /*         
+                         Initializiat cu 1. Cand se pune pe pozitia 0 primul, devine 2.
+                         Indica mereu catre primul index de dupa finalul vectorului de topicuri.
+                         */				
+	    *int connected;                     //0/1 -> connected/unconnected
+        *int nr_stored_messages;            //nr-ul de mesaje din cache care vor fi trimise la reconectare
+        *to_tcp_client *stored_messages_array;  //vectorul de mesaje cacheuite pentru SF = 1
+        *int stored_messages_array_phys_dim;	//dimensiunea fizica a vectorului de mesaje stocate pt. trimitere la reconectare
+    ################################################################################

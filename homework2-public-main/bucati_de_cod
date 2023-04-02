@@ -1,0 +1,134 @@
+float modulus, value;
+modulus = ((uint8_t)(payload[0]) << 8) + (uint8_t)(payload[1]);
+float value = (float)modulus/100;
+
+//Varianta gresita cu coada cu lista
+if(head_elem_queue == NULL) {
+
+        /*
+            Nu exista niciun mesaj in coada de mesaje a clientului.
+            Aloc primul nod din coada de mesaje.
+        */
+        cl -> head_elem_queue = (node *) malloc(sizeof(node));
+        DIE(cl -> head_elem_queue == NULL, "[server] Error at allocating memory for SF = 1 message(1st).\n");
+
+        //Aloc campul "data" al nodului.
+        cl -> head_elem_queue -> data = (to_tcp_client *) malloc(sizeof(to_tcp_client));
+        DIE(cl -> head_elem_queue -> data == NULL, "[server] Error at allocating memory for data field(1st).\n");
+
+        //Linkez campul urm la NULL pt. nodul head.
+        cl -> head_elem_queue -> urm = NULL;
+        
+        //Copiez structura m in data-ul head-ului.
+        memcpy(cl -> head_elem_queue -> data, m, sizeof(to_tcp_client));
+        
+        //Aloc spatiu si pentru ultimul nod din coada de mesaje.
+        cl -> last_elem_queue = (node *) malloc(sizeof(node));
+        DIE(cl -> last_elem_queue == NULL, "[server] Error at allocating memory for SF = 1 message(1st).\n");
+
+        //Aloc campul "data" al nodului.
+        cl -> last_elem_queue -> data = (to_tcp_client *) malloc(sizeof(to_tcp_client));
+        DIE(cl -> last_elem_queue -> data == NULL, "[server] Error at allocating memory for data field(1st).\n");
+
+        //Linkez last-ul la head.
+        cl -> last_elem_queue -> urm = cl -> head_elem_queue;
+
+    } else {
+        
+        /*
+            Avem deja mesaje in coada de mesaje a clientului,
+            prin urmare adaugam la final noul mesaj.
+            Copiez structura m in data-ul last-ului.
+        */
+        memcpy(cl -> last_elem_queue -> data, m, sizeof(to_tcp_client));
+
+        /*
+            Lastul este deja linkat la penultimul nod.
+            Aloc un nou last care va lua locul vechiului last.
+        */
+        node *last = (node *) malloc(sizeof(node));
+        DIE(last == NULL, "[server] Error at allocating memory for SF = 1 message(last).\n");
+
+        //Aloc campul "data" al noului last.
+        last -> data = (to_tcp_client *) malloc(sizeof(to_tcp_client));
+        DIE(last -> data == NULL, "[server] Error at allocating memory for data field(last).\n");
+
+        //Linkez noul last la penultimul nod.
+        cl -> last_elem_queue -> urm = cl -> head_elem_queue;
+    }
+    
+//
+// Verific daca clientul este deja abonat la topic.
+int check_if_already(client *c, from_tcp_client m, int sock) {
+    int i;
+
+    for(i = 0; i < c -> nr_topics; ++i) {
+        if(strcmp(c -> topics[i].title, m.topic) == 0) {
+            if(c -> topics[i].subscribed == 1) {
+                if(c -> topics[i].SF == m.SF) {
+                    send_message_error_to_client(sock, "already_subscribed");
+                    return -1;
+                } else {
+                    c -> topics[i].SF = m.SF;
+                    send_message_error_to_client(sock, "updated_SF_value");
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+else if(strcmp(m -> m.payload, "Cannot_unsubscribe_Client_not_prev_subscribed") == 0) {
+        fprintf(stderr, "Cannot unsubscribe a topic not previously subscribed.\n");
+        return 2;
+    } else if(strcmp(m -> m.payload, "already_subscribed") == 0) {
+        fprintf(stderr, "Cannot subscribe to a topic already subscribed.\n");
+        return 3;
+    } else if(strcmp(m -> m.payload, "updated_SF_value") == 0) {
+        fprintf(stderr, "The SF value has been updated.\n");
+        return 4;
+    }
+    
+// Verific daca clientul este deja abonat la topic.
+int check_if_already(client *c, from_tcp_client m, int sock) {
+    int i;
+
+    for(i = 0; i < c -> nr_topics; ++i) {
+        if(strcmp(c -> topics[i].title, m.topic) == 0) {
+            if(c -> topics[i].subscribed == 1) {
+                if(c -> topics[i].SF == m.SF) {
+                    send_message_error_to_client(sock, "already_subscribed");
+                    return -1;
+                } else {
+                    c -> topics[i].SF = m.SF;
+                    send_message_error_to_client(sock, "modified_SF_value");
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+//
+// Verific daca clientul este deja abonat la topic.
+int check_if_already(client *c, from_tcp_client m, int sock) {
+    int i;
+
+    for(i = 0; i < c -> nr_topics; ++i) {
+        if(strcmp(c -> topics[i].title, m.topic) == 0) {
+            if(c -> topics[i].subscribed == 1) {
+                if(c -> topics[i].SF == m.SF) {
+                    send_message_error_to_client(sock, "already_subscribed");
+                    return -1;
+                } else {
+                    c -> topics[i].SF = m.SF;
+                    send_message_error_to_client(sock, "modified_SF_value");
+                }
+            }
+        }
+    }
+
+    return 0;
+}
